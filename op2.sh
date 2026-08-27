@@ -72,7 +72,7 @@ clone_async package/chajian/socat                             https://github.com
 # 替换 tailscale 的默认启动脚本和配置
 sed -i '/\/etc\/init\.d\/tailscale/d;/\/etc\/config\/tailscale/d;' feeds/packages/net/tailscale/Makefile
 clone_async package/chajian/tailscale/luci-app-tailscale      https://github.com/asvow/luci-app-tailscale.git
-clone_async package/chajian/argon                             https://github.com/sbwml/luci-theme-argon.git                         openwrt-24.10-legacy
+clone_async package/chajian/argon                             https://github.com/sbwml/luci-theme-argon.git                         openwrt-24.10
 clone_async package/chajian/dockerman                         https://github.com/lisaac/luci-app-dockerman.git
 clone_async package/chajian/openclash                         https://github.com/vernesong/OpenClash.git
 clone_async package/chajian/homeproxy                         https://github.com/immortalwrt/homeproxy.git
