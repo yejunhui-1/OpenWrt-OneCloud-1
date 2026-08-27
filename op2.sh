@@ -63,6 +63,18 @@ git clone https://github.com/asvow/luci-app-tailscale.git package/chajian/tailsc
 # 拉取 luci-theme-argon、luci-app-argon-config
 git clone https://github.com/sbwml/luci-theme-argon.git -b openwrt-25.12-legacy package/chajian/argon
 
+# 拉取 luci-app-dockerman（Docker 管理界面）
+git clone https://github.com/lisaac/luci-app-dockerman.git package/chajian/dockerman
+
+# 拉取 OpenClash
+git clone https://github.com/vernesong/OpenClash.git package/chajian/openclash
+
+# 拉取 homeproxy
+git clone https://github.com/immortalwrt/homeproxy.git package/chajian/homeproxy
+
+# 拉取 iStore（luci-app-store、luci-lib-ipkg）
+git clone https://github.com/linkease/istore.git package/chajian/istore
+
 # 特殊的替换配置
 ## 删除自带的 ddns-scripts
 rm -rf feeds/packages/net/ddns-scripts
@@ -104,11 +116,11 @@ merge_package openwrt-25.12 https://github.com/immortalwrt/luci.git feeds/luci/a
 sed -i '/lienol/d' feeds.conf.default
 
 # 修改默认 IP
-sed -i 's/192.168.1.1/192.168.5.254/g' package/base-files/files/bin/config_generate
+sed -i 's/192.168.1.1/192.168.101.10/g' package/base-files/files/bin/config_generate
 #sed -i 's/192.168.1.1/192.168.8.1/g' package/base-files/files/bin/config_generate
 
 # 修改默认主题
-sed -i 's/luci-theme-bootstrap/luci-theme-material/g' feeds/luci/collections/luci-light/Makefile
+sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci-light/Makefile
 
 # 修改主机名
 sed -i "s/hostname='.*'/hostname='OneCloud'/g" package/base-files/files/bin/config_generate
@@ -123,3 +135,46 @@ uci set system.@system[0].zonename='Asia/Shanghai'
 uci commit system
 EOF
 chmod +x files/etc/uci-defaults/99-timezone
+
+# 旁路由模式配置：网关 192.168.101.1，关闭 DHCP（主路由负责分配）
+## 在 config_generate 之后运行，此时 /etc/config/network 已生成
+cat > files/etc/uci-defaults/98-bypass-router << 'EOF'
+#!/bin/sh
+uci set network.lan.ipaddr='192.168.101.10'
+uci set network.lan.netmask='255.255.255.0'
+uci set network.lan.gateway='192.168.101.1'
+uci set network.lan.dns='192.168.101.1'
+uci set network.lan.broadcast='192.168.101.255'
+uci set dhcp.lan.ignore='1'
+uci commit network
+uci commit dhcp
+exit 0
+EOF
+chmod +x files/etc/uci-defaults/98-bypass-router
+
+# 修复软件源
+## /etc/opkg/opkg.conf
+mkdir -p files/etc/opkg
+cat > files/etc/opkg/opkg.conf << 'EOF'
+dest root /
+dest ram /tmp
+lists_dir ext /var/opkg-lists
+option overlay_root /overlay
+EOF
+
+## /etc/opkg/customfeeds.conf
+cat > files/etc/opkg/customfeeds.conf << 'EOF'
+# add your custom package feeds here
+#
+# src/gz example_feed_name `http://www.example.com/path/to/files`
+EOF
+
+## /etc/opkg/distfeeds.conf（使用 dl.openwrt.ai 软件源）
+cat > files/etc/opkg/distfeeds.conf << 'EOF'
+src/gz kwrt_core `https://dl.openwrt.ai/releases/24.10/targets/amlogic/meson8b/6.6.102`
+src/gz kwrt_base `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/base`
+src/gz kwrt_packages `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/packages`
+src/gz kwrt_luci `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/luci`
+src/gz kwrt_routing `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/routing`
+src/gz kwrt_kiddin9 `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/kiddin9`
+EOF
