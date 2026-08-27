@@ -10,72 +10,89 @@
 # Description: OpenWrt DIY script part 2 (After Update feeds)
 #
 
+# =============================================================================
+# 加速优化：浅克隆 + GitHub 镜像回退
+# 用法：clone_once <dest> <url> [branch]
+# =============================================================================
+clone_once() {
+    local dest="$1" url="$2" branch="${3:-}"
+    local -a args=(--depth 1 --single-branch --filter=blob:none --progress)
+    [ -n "$branch" ] && args+=(-b "$branch")
+    local mirrored rc
+    # 按顺序尝试：GitHub 直连 → ghproxy 镜像 → gitclone 镜像（每步 5 分钟超时兜底）
+    for prefix in "" "https://ghproxy.com/" "https://gitclone.com/"; do
+        mirrored="${prefix}${url}"
+        echo "[clone] ${mirrored}  →  ${dest}${branch:+ (branch=$branch)}"
+        rm -rf "$dest"
+        if timeout 300 git clone "${args[@]}" "$mirrored" "$dest"; then
+            return 0
+        fi
+        rc=$?
+        echo "[clone] 失败 rc=$rc，回退下一镜像: $mirrored"
+    done
+    echo "[clone] 所有镜像均失败: $url -> $dest" >&2
+    return 1
+}
+# 并行 clone：子 shell 调用 clone_once，失败写入 .clone_fails
+clone_async() {
+    local dest="$1" url="$2" branch="${3:-}"
+    {
+        if ! clone_once "$dest" "$url" "$branch"; then
+            echo "${dest}|${url}|${branch}" >>"$CLONE_FAIL_LOG"
+        fi
+    } &
+}
+export -f clone_once
+export CLONE_FAIL_LOG="$(mktemp)"
+: >"$CLONE_FAIL_LOG"
+
+# =============================================================================
+# 分组 1：仅依赖 feeds 目录（不依赖其他克隆产物）—— 并行
+# =============================================================================
+echo "=== [并行组 1/2] 克隆独立仓库（13 个并发）==="
 # 删除自带的 golang
 rm -rf feeds/packages/lang/golang
-# 拉取新的 golang
-git clone https://github.com/sbwml/packages_lang_golang.git -b 26.x feeds/packages/lang/golang
-
+clone_async feeds/packages/lang/golang                       https://github.com/sbwml/packages_lang_golang.git                        26.x
 # 删除 passwall 自带的核心库
 rm -rf feeds/packages/net/{xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls}
 rm -rf package/feeds/packages/{xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-libev,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,trojan-plus,tuic-client,v2ray-plugin,xray-plugin,geoview,shadow-tls}
-# 拉取新的 passwall-packages
-git clone https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/chajian/passwall-packages
-#cd package/chajian/passwall-packages
-#git checkout bc40fceb0488dfb5a4adb711cc1830a8021ee555
-#cd -
-
+clone_async package/chajian/passwall-packages                https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git
 # 删除 passwall 过时的 luci
 rm -rf feeds/luci/applications/luci-app-passwall
 rm -rf package/feeds/luci/luci-app-passwall
-# 拉取新的 passwall-luci
-git clone https://github.com/Openwrt-Passwall/openwrt-passwall.git package/chajian/passwall-luci
-#cd package/chajian/passwall-luci
-#git checkout ebd3355bdf2fcaa9e0c43ec0704a8d9d8cf9f658
-#cd -
-
-# 拉取 easytier、luci-app-easytier
-git clone https://github.com/EasyTier/luci-app-easytier.git package/chajian/easytier
-
-# 拉取锐捷认证
-git clone https://github.com/sbwml/luci-app-mentohust.git package/chajian/mentohust
-
-# 拉取 msd_lite、luci-app-msd_lite
-git clone https://github.com/gtolog/openwrt-msd_lite.git package/chajian/msd_lite
-
-# 拉取 OpenAppFilter、luci-app-oaf
-git clone https://github.com/destan19/OpenAppFilter.git package/chajian/OpenAppFilter
-
+clone_async package/chajian/passwall-luci                    https://github.com/Openwrt-Passwall/openwrt-passwall.git
+clone_async package/chajian/easytier                         https://github.com/EasyTier/luci-app-easytier.git
+clone_async package/chajian/mentohust                        https://github.com/sbwml/luci-app-mentohust.git
+clone_async package/chajian/msd_lite                          https://github.com/gtolog/openwrt-msd_lite.git
+clone_async package/chajian/OpenAppFilter                     https://github.com/destan19/OpenAppFilter.git
 ## 删除自带的 luci-app-socat
 rm -rf feeds/lienol/luci-app-socat
 rm -rf package/feeds/lienol/luci-app-socat
-# 拉取新的 luci-app-socat
-git clone https://github.com/chenmozhijin/luci-app-socat.git package/chajian/socat
-
+clone_async package/chajian/socat                             https://github.com/chenmozhijin/luci-app-socat.git
 # 替换 tailscale 的默认启动脚本和配置
 sed -i '/\/etc\/init\.d\/tailscale/d;/\/etc\/config\/tailscale/d;' feeds/packages/net/tailscale/Makefile
-# 拉取 luci-app-tailscale
-git clone https://github.com/asvow/luci-app-tailscale.git package/chajian/tailscale/luci-app-tailscale
+clone_async package/chajian/tailscale/luci-app-tailscale      https://github.com/asvow/luci-app-tailscale.git
+clone_async package/chajian/argon                             https://github.com/sbwml/luci-theme-argon.git                         openwrt-25.12-legacy
+clone_async package/chajian/dockerman                         https://github.com/lisaac/luci-app-dockerman.git
+clone_async package/chajian/openclash                         https://github.com/vernesong/OpenClash.git
+clone_async package/chajian/homeproxy                         https://github.com/immortalwrt/homeproxy.git
+clone_async package/chajian/istore                            https://github.com/linkease/istore.git
+# 等待组 1 完成
+wait
+echo "=== [并行组 1/2] 完成，失败数：$(wc -l <"$CLONE_FAIL_LOG") ==="
+if [ -s "$CLONE_FAIL_LOG" ]; then
+    echo "以下仓库需重试（串行逐个回退三源）："
+    cat "$CLONE_FAIL_LOG"
+    while IFS='|' read -r dest url branch; do
+        clone_once "$dest" "$url" "$branch"
+    done <"$CLONE_FAIL_LOG"
+fi
+: >"$CLONE_FAIL_LOG"
 
-# 拉取 luci-theme-argon
-#git clone https://github.com/jerrykuku/luci-theme-argon.git -b master package/chajian/argon/luci-theme-argon
-# 拉取 luci-app-argon-config
-#git clone https://github.com/jerrykuku/luci-app-argon-config.git -b master package/chajian/argon/luci-app-argon-config
-# 拉取 luci-theme-argon、luci-app-argon-config
-git clone https://github.com/sbwml/luci-theme-argon.git -b openwrt-25.12-legacy package/chajian/argon
-
-# 拉取 luci-app-dockerman（Docker 管理界面）
-git clone https://github.com/lisaac/luci-app-dockerman.git package/chajian/dockerman
-
-# 拉取 OpenClash
-git clone https://github.com/vernesong/OpenClash.git package/chajian/openclash
-
-# 拉取 homeproxy
-git clone https://github.com/immortalwrt/homeproxy.git package/chajian/homeproxy
-
-# 拉取 iStore（luci-app-store、luci-lib-ipkg）
-git clone https://github.com/linkease/istore.git package/chajian/istore
-
-# 特殊的替换配置
+# =============================================================================
+# 特殊的替换配置（按仓库稀疏检出，保留原 merge_package 逻辑，并同样加镜像回退）
+# =============================================================================
+echo "=== [串行组] 稀疏检出 merge_package（5 个）==="
 ## 删除自带的 ddns-scripts
 rm -rf feeds/packages/net/ddns-scripts
 ## 删除自带的 luci-base
@@ -92,7 +109,23 @@ function merge_package(){
     localdir="$target_dir"
     [ -d "$localdir" ] || mkdir -p "$localdir"
     tmpdir="$(mktemp -d)" || exit 1
-    git clone -b "$branch" --depth 1 --filter=blob:none --sparse "$curl" "$tmpdir"
+    # 浅克隆+三源镜像回退
+    local mirrored rc
+    for prefix in "" "https://ghproxy.com/" "https://gitclone.com/"; do
+        mirrored="${prefix}${curl}"
+        echo "[merge] clone ${mirrored} (branch=$branch) → $tmpdir"
+        if timeout 300 git clone -b "$branch" --depth 1 --filter=blob:none --sparse "$mirrored" "$tmpdir"; then
+            break
+        fi
+        rc=$?
+        echo "[merge] clone 失败 rc=$rc，回退下一镜像"
+        rm -rf "$tmpdir"
+        tmpdir="$(mktemp -d)" || exit 1
+    done
+    if [ ! -d "$tmpdir/.git" ]; then
+        echo "[merge] 所有镜像失败：$curl" >&2
+        return 1
+    fi
     cd "$tmpdir"
     git sparse-checkout init --cone
     git sparse-checkout set "$@"
@@ -178,3 +211,6 @@ src/gz kwrt_luci `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vf
 src/gz kwrt_routing `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/routing`
 src/gz kwrt_kiddin9 `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/kiddin9`
 EOF
+
+# 清理临时文件
+rm -f "$CLONE_FAIL_LOG"
