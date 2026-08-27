@@ -202,15 +202,33 @@ cat > files/etc/opkg/customfeeds.conf << 'EOF'
 # src/gz example_feed_name `http://www.example.com/path/to/files`
 EOF
 
-## /etc/opkg/distfeeds.conf（使用 dl.openwrt.ai 软件源）
+## /etc/opkg/distfeeds.conf（使用 dl.openwrt.ai 软件源 — 仅保留用户态源）
+# 注：未启用 kwrt_core（内核模块源）——本固件实际编译内核为 6.12.94（OpenWrt 25.12 主线），
+#     kwrt_core 对应 6.6.102 vermagic 完全不一致，强行安装 kmod-* 会加载失败。
+#     如需内核驱动请从 OpenWrt 25.12 官方对应 meson8b 源中补入。
 cat > files/etc/opkg/distfeeds.conf << 'EOF'
-src/gz kwrt_core `https://dl.openwrt.ai/releases/24.10/targets/amlogic/meson8b/6.6.102`
 src/gz kwrt_base `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/base`
 src/gz kwrt_packages `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/packages`
 src/gz kwrt_luci `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/luci`
 src/gz kwrt_routing `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/routing`
 src/gz kwrt_kiddin9 `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/kiddin9`
 EOF
+
+# iStoreOS / 首页向导：兜底软链（防止 feeds install -a 漏装 nas/nas_luci 中的包，
+# 因为它们的包名依赖 luci-lib-ipkg 等可能被自动跳过）。若已在 package/feeds/ 下则不会重复。
+[ -d package/chajian/istore/luci-app-store       ] && ln -sfn ../../chajian/istore/luci-app-store       package/luci-app-store
+[ -d package/chajian/istore/luci-lib-ipkg        ] && ln -sfn ../../chajian/istore/luci-lib-ipkg        package/luci-lib-ipkg
+[ -d feeds/nas_luci/luci/applications/luci-app-quickstart ] && {
+    [ -d package/feeds/nas_luci ] || mkdir -p package/feeds/nas_luci
+    ln -sfn ../../../feeds/nas_luci/luci/applications/luci-app-quickstart package/feeds/nas_luci/luci-app-quickstart 2>/dev/null || true
+}
+[ -d feeds/nas/packages/quickstart               ] && {
+    [ -d package/feeds/nas ] || mkdir -p package/feeds/nas
+    ln -sfn ../../../feeds/nas/packages/quickstart package/feeds/nas/quickstart 2>/dev/null || true
+}
+# argon-config 同样兜底（sbwml 仓库是顶层+子目录结构，防止仅主题被 install 时漏掉）
+[ -d package/chajian/argon/luci-app-argon-config ] && ln -sfn ../../chajian/argon/luci-app-argon-config package/luci-app-argon-config 2>/dev/null || true
+[ -d package/chajian/argon/luci-theme-argon      ] && ln -sfn ../../chajian/argon/luci-theme-argon      package/luci-theme-argon      2>/dev/null || true
 
 # 清理临时文件
 rm -f "$CLONE_FAIL_LOG"
