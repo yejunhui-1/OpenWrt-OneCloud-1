@@ -24,6 +24,10 @@ sed -i 's|https://git.openwrt.org/feed/telephony.git|https://github.com/openwrt/
 # 添加 lienol 大的 package
 echo 'src-git lienol https://github.com/Lienol/openwrt-package.git;main' >>feeds.conf.default
 
+# 添加 iStoreOS 软件源（iStore 应用/quickstart 首页等）
+echo 'src-git nas https://github.com/linkease/nas-packages.git;master' >>feeds.conf.default
+echo 'src-git nas_luci https://github.com/linkease/nas-packages-luci.git;main' >>feeds.conf.default
+
 # Uncomment a feed source
 #sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
 # Add a feed source
