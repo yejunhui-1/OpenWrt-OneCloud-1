@@ -72,7 +72,7 @@ clone_async package/chajian/socat                             https://github.com
 # 替换 tailscale 的默认启动脚本和配置
 sed -i '/\/etc\/init\.d\/tailscale/d;/\/etc\/config\/tailscale/d;' feeds/packages/net/tailscale/Makefile
 clone_async package/chajian/tailscale/luci-app-tailscale      https://github.com/asvow/luci-app-tailscale.git
-clone_async package/chajian/argon                             https://github.com/sbwml/luci-theme-argon.git                         openwrt-25.12-legacy
+clone_async package/chajian/argon                             https://github.com/sbwml/luci-theme-argon.git                         openwrt-24.10-legacy
 clone_async package/chajian/dockerman                         https://github.com/lisaac/luci-app-dockerman.git
 clone_async package/chajian/openclash                         https://github.com/vernesong/OpenClash.git
 clone_async package/chajian/homeproxy                         https://github.com/immortalwrt/homeproxy.git
@@ -135,15 +135,15 @@ function merge_package(){
     cd "$rootdir"
 }
 ## 提取 ddns-scripts
-merge_package openwrt-25.12 https://github.com/immortalwrt/packages.git feeds/packages/net net/ddns-scripts
+merge_package openwrt-24.10 https://github.com/immortalwrt/packages.git feeds/packages/net net/ddns-scripts
 ## 提取 fullconenat-nft
-merge_package openwrt-25.12 https://github.com/immortalwrt/immortalwrt.git package/network/utils package/network/utils/fullconenat-nft
+merge_package openwrt-24.10 https://github.com/immortalwrt/immortalwrt.git package/network/utils package/network/utils/fullconenat-nft
 ## 提取 pdnsd-alt、upx
 merge_package main https://github.com/kenzok8/jell.git package/chajian/kenzok8-package pdnsd-alt upx
 ## 提取 luci-base（如上 fullconenat-nft 需要）
-merge_package openwrt-25.12 https://github.com/immortalwrt/luci.git feeds/luci/modules modules/luci-base
+merge_package openwrt-24.10 https://github.com/immortalwrt/luci.git feeds/luci/modules modules/luci-base
 ## 提取 luci-app-firewall（如上 fullconenat-nft 需要）
-merge_package openwrt-25.12 https://github.com/immortalwrt/luci.git feeds/luci/applications applications/luci-app-firewall
+merge_package openwrt-24.10 https://github.com/immortalwrt/luci.git feeds/luci/applications applications/luci-app-firewall
 
 # 删除 feeds.conf.default 中添加的第三方源
 sed -i '/lienol/d' feeds.conf.default
@@ -202,11 +202,11 @@ cat > files/etc/opkg/customfeeds.conf << 'EOF'
 # src/gz example_feed_name `http://www.example.com/path/to/files`
 EOF
 
-## /etc/opkg/distfeeds.conf（使用 dl.openwrt.ai 软件源 — 仅保留用户态源）
-# 注：未启用 kwrt_core（内核模块源）——本固件实际编译内核为 6.12.94（OpenWrt 25.12 主线），
-#     kwrt_core 对应 6.6.102 vermagic 完全不一致，强行安装 kmod-* 会加载失败。
-#     如需内核驱动请从 OpenWrt 25.12 官方对应 meson8b 源中补入。
+## /etc/opkg/distfeeds.conf（使用 dl.openwrt.ai 软件源，24.10 / 6.6.102 内核分支）
+# 注：kwrt_core（内核模块源）对应 6.6.102，随 OpenWrt 24.10 主线编译内核一致，
+#     本构建现已切换到 REPO_BRANCH=openwrt-24.10，vermagic 匹配，kmod-* 可正常安装。
 cat > files/etc/opkg/distfeeds.conf << 'EOF'
+src/gz kwrt_core `https://dl.openwrt.ai/releases/24.10/targets/amlogic/meson8b/6.6.102`
 src/gz kwrt_base `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/base`
 src/gz kwrt_packages `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/packages`
 src/gz kwrt_luci `https://dl.openwrt.ai/releases/24.10/packages/arm_cortex-a5_vfpv4/luci`
